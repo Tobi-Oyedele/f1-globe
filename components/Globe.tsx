@@ -2,11 +2,20 @@
 
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
-import { races } from "@/data/races";
+import { races, Race } from "@/data/races";
 import { latLngToPos, createArcPoints } from "@/utils/globe";
 
-export default function Globe() {
+interface GlobeProps {
+  onMarkerHover: (race: Race | null, x: number, y: number) => void;
+}
+
+export default function Globe({ onMarkerHover }: GlobeProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const hoverCallbackRef = useRef(onMarkerHover);
+
+  useEffect(() => {
+    hoverCallbackRef.current = onMarkerHover;
+  }, [onMarkerHover]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -121,10 +130,12 @@ export default function Globe() {
 
     // NEW === INTERACTION STATE ===
     // === RACE MARKERS ===
+
     const markerMeshes: {
       ring: THREE.Mesh;
       dot: THREE.Mesh;
       pulse: THREE.Mesh;
+      pos: THREE.Vector3;
       baseOpacity: number;
     }[] = [];
 
@@ -168,7 +179,7 @@ export default function Globe() {
       pulse.position.copy(pos);
       globeGroup.add(pulse);
 
-      markerMeshes.push({ ring, dot, pulse, baseOpacity: 0.3 });
+      markerMeshes.push({ ring, dot, pulse, pos, baseOpacity: 0.3 });
     });
 
     // === RACE PATHS ===
@@ -207,6 +218,7 @@ export default function Globe() {
     let targetRotationX = 0.3;
     let targetRotationY = 0;
     let autoRotate = true;
+    let hoveredIndex = -1;
 
     // NEW === MOUSE EVENTS ===
     const onMouseDown = (e: MouseEvent) => {
@@ -216,12 +228,54 @@ export default function Globe() {
     };
 
     const onMouseMove = (e: MouseEvent) => {
-      if (!isDragging) return;
-      const dx = e.clientX - previousMouse.x;
-      const dy = e.clientY - previousMouse.y;
-      rotationVelocity.y += dx * 0.003;
-      rotationVelocity.x += dy * 0.002;
-      previousMouse = { x: e.clientX, y: e.clientY };
+      if (isDragging) {
+        const dx = e.clientX - previousMouse.x;
+        const dy = e.clientY - previousMouse.y;
+        rotationVelocity.y += dx * 0.003;
+        rotationVelocity.x += dy * 0.002;
+        previousMouse = { x: e.clientX, y: e.clientY };
+        return;
+      }
+
+      let found = false;
+
+      for (let i = 0; i < markerMeshes.length; i++) {
+        const m = markerMeshes[i];
+        const worldPos = new THREE.Vector3();
+        m.pulse.getWorldPosition(worldPos);
+        const screenPos = worldPos.clone().project(camera);
+
+        const sx = (screenPos.x * 0.5 + 0.5) * window.innerWidth;
+        const sy = (-screenPos.y * 0.5 + 0.5) * window.innerHeight;
+
+        const dist = Math.hypot(e.clientX - sx, e.clientY - sy);
+
+        if (dist < 20 && screenPos.z < 1) {
+          (m.ring.material as THREE.MeshBasicMaterial).opacity = 0.8;
+          (m.dot.material as THREE.MeshBasicMaterial).opacity = 1;
+          m.pulse.scale.set(2.5, 2.5, 2.5);
+
+          let tx = e.clientX + 20;
+          let ty = e.clientY - 20;
+          if (tx + 260 > window.innerWidth) tx = e.clientX - 270;
+          if (ty + 150 > window.innerHeight) ty = e.clientY - 150;
+
+          hoveredIndex = i;
+          hoverCallbackRef.current(races[i], tx, ty);
+          found = true;
+          break;
+        }
+      }
+
+      if (!found) {
+        hoveredIndex = -1;
+        markerMeshes.forEach((m) => {
+          (m.ring.material as THREE.MeshBasicMaterial).opacity = m.baseOpacity;
+          (m.dot.material as THREE.MeshBasicMaterial).opacity = 0.9;
+          m.pulse.scale.set(1, 1, 1);
+        });
+        hoverCallbackRef.current(null, 0, 0);
+      }
     };
 
     const onMouseUp = () => {
@@ -299,6 +353,8 @@ export default function Globe() {
       // Marker pulse animation
       const time = performance.now() * 0.001;
       markerMeshes.forEach((m, i) => {
+        if (i === hoveredIndex) return; // skip — hover is controlling this one
+
         const pulse = 0.7 + 0.3 * Math.sin(time * 2 + i * 0.5);
         (m.ring.material as THREE.MeshBasicMaterial).opacity =
           m.baseOpacity * pulse;
@@ -342,7 +398,7 @@ export default function Globe() {
       renderer.dispose();
       container.removeChild(renderer.domElement);
     };
-  }, []);
+  }, [onMarkerHover]);
 
   return (
     <div
