@@ -2,6 +2,8 @@
 
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
+import { races } from "@/data/races";
+import { latLngToPos } from "@/utils/globe";
 
 export default function Globe() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -118,6 +120,57 @@ export default function Globe() {
     }
 
     // NEW === INTERACTION STATE ===
+    // === RACE MARKERS ===
+    const markerMeshes: {
+      ring: THREE.Mesh;
+      dot: THREE.Mesh;
+      pulse: THREE.Mesh;
+      baseOpacity: number;
+    }[] = [];
+
+    races.forEach((race) => {
+      const pos = latLngToPos(race.lat, race.lng, 1.006);
+
+      // Outer glow ring
+      const ringGeo = new THREE.RingGeometry(0.012, 0.018, 32);
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: 0xe10600,
+        transparent: true,
+        opacity: 0.3,
+        side: THREE.DoubleSide,
+      });
+      const ring = new THREE.Mesh(ringGeo, ringMat);
+      ring.position.copy(pos);
+      ring.lookAt(new THREE.Vector3(0, 0, 0));
+      globeGroup.add(ring);
+
+      // Inner dot
+      const dotGeo = new THREE.CircleGeometry(0.007, 16);
+      const dotMat = new THREE.MeshBasicMaterial({
+        color: 0xe10600,
+        transparent: true,
+        opacity: 0.9,
+        side: THREE.DoubleSide,
+      });
+      const dot = new THREE.Mesh(dotGeo, dotMat);
+      dot.position.copy(pos);
+      dot.lookAt(new THREE.Vector3(0, 0, 0));
+      globeGroup.add(dot);
+
+      // Pulse sphere
+      const pulseGeo = new THREE.SphereGeometry(0.004, 8, 8);
+      const pulseMat = new THREE.MeshBasicMaterial({
+        color: 0xe10600,
+        transparent: true,
+        opacity: 0.7,
+      });
+      const pulse = new THREE.Mesh(pulseGeo, pulseMat);
+      pulse.position.copy(pos);
+      globeGroup.add(pulse);
+
+      markerMeshes.push({ ring, dot, pulse, baseOpacity: 0.3 });
+    });
+
     let isDragging = false;
     let previousMouse = { x: 0, y: 0 };
     const rotationVelocity = { x: 0, y: 0 };
@@ -213,6 +266,16 @@ export default function Globe() {
       globeGroup.rotation.y += (targetRotationY - globeGroup.rotation.y) * 0.06;
       globeGroup.rotation.x += (targetRotationX - globeGroup.rotation.x) * 0.06;
 
+      // Marker pulse animation
+      const time = performance.now() * 0.001;
+      markerMeshes.forEach((m, i) => {
+        const pulse = 0.7 + 0.3 * Math.sin(time * 2 + i * 0.5);
+        (m.ring.material as THREE.MeshBasicMaterial).opacity =
+          m.baseOpacity * pulse;
+
+        const s = 1 + 0.2 * Math.sin(time * 3 + i * 0.7);
+        m.pulse.scale.set(s, s, s);
+      });
       renderer.render(scene, camera);
     };
 
