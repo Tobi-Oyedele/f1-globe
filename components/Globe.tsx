@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { races } from "@/data/races";
-import { latLngToPos } from "@/utils/globe";
+import { latLngToPos, createArcPoints } from "@/utils/globe";
 
 export default function Globe() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -171,6 +171,36 @@ export default function Globe() {
       markerMeshes.push({ ring, dot, pulse, baseOpacity: 0.3 });
     });
 
+    // === RACE PATHS ===
+    interface PathLine {
+      line: THREE.Line;
+      targetOpacity: number;
+      delay: number;
+    }
+
+    const pathLines: PathLine[] = [];
+
+    for (let i = 0; i < races.length - 1; i++) {
+      const startPos = latLngToPos(races[i].lat, races[i].lng);
+      const endPos = latLngToPos(races[i + 1].lat, races[i + 1].lng);
+      const arcPoints = createArcPoints(startPos, endPos);
+
+      const geo = new THREE.BufferGeometry().setFromPoints(arcPoints);
+      const mat = new THREE.LineBasicMaterial({
+        color: 0xe10600,
+        transparent: true,
+        opacity: 0.0,
+      });
+      const line = new THREE.Line(geo, mat);
+      globeGroup.add(line);
+
+      pathLines.push({
+        line,
+        targetOpacity: 0.18,
+        delay: i * 0.08,
+      });
+    }
+
     let isDragging = false;
     let previousMouse = { x: 0, y: 0 };
     const rotationVelocity = { x: 0, y: 0 };
@@ -275,6 +305,13 @@ export default function Globe() {
 
         const s = 1 + 0.2 * Math.sin(time * 3 + i * 0.7);
         m.pulse.scale.set(s, s, s);
+      });
+
+      // Path fade-in animation
+      pathLines.forEach((p) => {
+        const progress = Math.max(0, Math.min(1, (time - p.delay) * 0.5));
+        (p.line.material as THREE.LineBasicMaterial).opacity =
+          p.targetOpacity * progress;
       });
       renderer.render(scene, camera);
     };
