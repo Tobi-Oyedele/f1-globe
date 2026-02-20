@@ -7,9 +7,8 @@ export default function Globe() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!containerRef.current) return;
-
     const container = containerRef.current;
+    if (!container) return;
 
     // === SCENE, CAMERA, RENDERER ===
     const scene = new THREE.Scene();
@@ -26,7 +25,7 @@ export default function Globe() {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     container.appendChild(renderer.domElement);
 
-    // === GLOBE GROUP (everything attaches to this) ===
+    // === GLOBE GROUP ===
     const globeGroup = new THREE.Group();
     scene.add(globeGroup);
 
@@ -118,12 +117,102 @@ export default function Globe() {
       globeGroup.add(line);
     }
 
-    // === RENDER LOOP ===
+    // NEW === INTERACTION STATE ===
+    let isDragging = false;
+    let previousMouse = { x: 0, y: 0 };
+    const rotationVelocity = { x: 0, y: 0 };
+    let targetRotationX = 0.3;
+    let targetRotationY = 0;
+    let autoRotate = true;
+
+    // NEW === MOUSE EVENTS ===
+    const onMouseDown = (e: MouseEvent) => {
+      isDragging = true;
+      previousMouse = { x: e.clientX, y: e.clientY };
+      autoRotate = false;
+    };
+
+    const onMouseMove = (e: MouseEvent) => {
+      if (!isDragging) return;
+      const dx = e.clientX - previousMouse.x;
+      const dy = e.clientY - previousMouse.y;
+      rotationVelocity.y += dx * 0.003;
+      rotationVelocity.x += dy * 0.002;
+      previousMouse = { x: e.clientX, y: e.clientY };
+    };
+
+    const onMouseUp = () => {
+      isDragging = false;
+    };
+
+    // NEW === TOUCH EVENTS ===
+    let touchStart: { x: number; y: number } | null = null;
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 1) {
+        isDragging = true;
+        touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        autoRotate = false;
+      }
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (!isDragging || !touchStart || e.touches.length !== 1) return;
+      const dx = e.touches[0].clientX - touchStart.x;
+      const dy = e.touches[0].clientY - touchStart.y;
+      rotationVelocity.y += dx * 0.003;
+      rotationVelocity.x += dy * 0.002;
+      touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    };
+
+    const onTouchEnd = () => {
+      isDragging = false;
+      touchStart = null;
+    };
+
+    // NEW === ZOOM ===
+    const onWheel = (e: WheelEvent) => {
+      camera.position.z += e.deltaY * 0.001;
+      camera.position.z = Math.max(1.8, Math.min(5, camera.position.z));
+    };
+
+    // NEW === ATTACH EVENTS ===
+    const el = container;
+    el.addEventListener("mousedown", onMouseDown);
+    el.addEventListener("mousemove", onMouseMove);
+    el.addEventListener("mouseup", onMouseUp);
+    el.addEventListener("mouseleave", onMouseUp);
+    el.addEventListener("touchstart", onTouchStart, { passive: true });
+    el.addEventListener("touchmove", onTouchMove, { passive: true });
+    el.addEventListener("touchend", onTouchEnd);
+    el.addEventListener("wheel", onWheel, { passive: true });
+
+    // === RENDER LOOP (UPDATED) ===
     let animationId: number;
 
     const animate = () => {
       animationId = requestAnimationFrame(animate);
-      globeGroup.rotation.y += 0.002; // slow auto-rotate
+
+      // NEW: auto-rotate adds tiny velocity each frame
+      if (autoRotate) {
+        rotationVelocity.y += 0.0002;
+      }
+
+      // NEW: apply velocity to target rotation
+      targetRotationY += rotationVelocity.y;
+      targetRotationX += rotationVelocity.x;
+
+      // NEW: clamp vertical rotation so you can't flip the globe
+      targetRotationX = Math.max(-1.2, Math.min(1.2, targetRotationX));
+
+      // NEW: damping — this is what makes it feel smooth
+      rotationVelocity.x *= 0.92;
+      rotationVelocity.y *= 0.92;
+
+      // NEW: lerp actual rotation toward target (smooth easing)
+      globeGroup.rotation.y += (targetRotationY - globeGroup.rotation.y) * 0.06;
+      globeGroup.rotation.x += (targetRotationX - globeGroup.rotation.x) * 0.06;
+
       renderer.render(scene, camera);
     };
 
@@ -138,14 +227,27 @@ export default function Globe() {
 
     window.addEventListener("resize", handleResize);
 
-    // === CLEANUP ===
+    // === CLEANUP (UPDATED) ===
     return () => {
       window.removeEventListener("resize", handleResize);
+      el.removeEventListener("mousedown", onMouseDown);
+      el.removeEventListener("mousemove", onMouseMove);
+      el.removeEventListener("mouseup", onMouseUp);
+      el.removeEventListener("mouseleave", onMouseUp);
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove", onTouchMove);
+      el.removeEventListener("touchend", onTouchEnd);
+      el.removeEventListener("wheel", onWheel);
       cancelAnimationFrame(animationId);
       renderer.dispose();
       container.removeChild(renderer.domElement);
     };
   }, []);
 
-  return <div ref={containerRef} className="fixed inset-0 w-full h-full" />;
+  return (
+    <div
+      ref={containerRef}
+      className="fixed inset-0 w-full h-full cursor-grab active:cursor-grabbing"
+    />
+  );
 }
