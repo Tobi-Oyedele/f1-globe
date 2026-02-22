@@ -1,36 +1,89 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# F1 Globe
+
+An interactive 3D visualization of the 2026 Formula 1 racing calendar — explore all 24 races on a rotating globe.
+
+## Overview
+
+F1 Globe renders the full 2026 F1 season on a WebGL-powered 3D globe. Race locations are plotted as animated markers, connected by curved arc paths that trace the order of the season. Hover over any marker to see race details, drag to spin the globe, and scroll to zoom.
+
+## Features
+
+- **Interactive 3D globe** — drag to rotate, scroll to zoom, touch-friendly
+- **24 race markers** — pulsing indicators for every 2026 Grand Prix
+- **Curved race paths** — animated arcs connecting consecutive race venues in season order
+- **Hover tooltips** — displays round number, country, venue name, and race date on hover
+- **Atmospheric effects** — glow shader, wireframe grid overlay, and latitude reference lines
+- **Smooth auto-rotation** — slows on interaction, resumes when idle
+- **High-DPI support** — optimised pixel ratio for retina displays
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Framework | Next.js 15 (App Router) |
+| Language | TypeScript 5 |
+| 3D Rendering | Three.js (WebGL) |
+| Styling | Tailwind CSS 4 |
+| Linting | ESLint 9 |
 
 ## Getting Started
 
-First, run the development server:
+**Prerequisites:** Node.js 18+
 
 ```bash
+# Install dependencies
+npm install
+
+# Start the development server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Other commands
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run build   # Production build
+npm start       # Start production server
+npm run lint    # Run ESLint
+```
 
-## Learn More
+## Project Structure
 
-To learn more about Next.js, take a look at the following resources:
+```
+f1-globe/
+├── app/
+│   ├── page.tsx        # Root page — manages tooltip state and hover throttling
+│   ├── layout.tsx      # Root layout and metadata
+│   └── globals.css     # Global styles
+├── components/
+│   ├── Globe.tsx       # Three.js scene — globe, markers, arcs, lighting, interaction
+│   └── Tooltip.tsx     # Race info tooltip with blur backdrop
+├── data/
+│   └── races.ts        # 2026 F1 calendar data (24 races)
+├── utils/
+│   └── globe.ts        # 3D math helpers (lat/lng → 3D coords, arc generation)
+└── public/             # Static assets
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Race Data
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Each race in `data/races.ts` follows this shape:
 
-## Deploy on Vercel
+```ts
+interface Race {
+  round: number;   // Race number in the season (1–24)
+  country: string; // Host country
+  city: string;    // Host city
+  name: string;    // Official Grand Prix name
+  date: string;    // Race weekend date range (e.g. "06 – 08 Mar")
+  lat: number;     // Venue latitude
+  lng: number;     // Venue longitude
+}
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+To update the calendar or add races, edit `data/races.ts` — the globe picks up changes automatically.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## License
+
+MIT
