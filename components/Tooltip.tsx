@@ -1,3 +1,5 @@
+"use client";
+
 import { Race } from "@/data/races";
 
 interface TooltipProps {
@@ -27,7 +29,7 @@ export default function Tooltip({ race, x, y, visible }: TooltipProps) {
         <p className="text-[10px] font-light text-white/35 mb-2.5 tracking-wide leading-relaxed">
           {race.name}
         </p>
-        <p className="text-xs font-normal text-white/60 pt-2.5 border-t border-white6">
+        <p className="text-xs font-normal text-white/60 pt-2.5 border-t border-white/6">
           {race.date} 2026
         </p>
       </div>
